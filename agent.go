@@ -3,7 +3,6 @@ package consulapi
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -87,7 +86,6 @@ func (a *Agent) ServiceRegister(ctx context.Context, registration AgentServiceRe
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("register status code ->", resp.StatusCode)
 	io.Copy(os.Stdout, resp.Body)
 
 	return nil

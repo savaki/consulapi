@@ -3,7 +3,6 @@ package connect
 import (
 	"context"
 	"encoding/hex"
-	"io"
 	"log"
 	"math/rand"
 	"strconv"
@@ -25,10 +24,10 @@ func guid() string {
 	return hex.EncodeToString(data)
 }
 
-type closerFunc func() error
-
-func (fn closerFunc) Close() error {
-	return fn()
+type AgentAPI interface {
+	ServiceRegister(ctx context.Context, registration consulapi.AgentServiceRegistration) error
+	ServiceDeregister(ctx context.Context, serviceID string) error
+	UpdateTTL(ctx context.Context, status consulapi.Status, checkID, output string) error
 }
 
 type config struct {
@@ -36,7 +35,7 @@ type config struct {
 	port                int
 	healthCheckInterval time.Duration
 	healthCheckFunc     func() error
-	agent               *consulapi.Agent
+	client              AgentAPI
 }
 
 func registerAndUpdate(ctx context.Context, config config) error {
@@ -59,10 +58,10 @@ func registerAndUpdate(ctx context.Context, config config) error {
 			Native: true,
 		},
 	}
-	if err := config.agent.ServiceRegister(ctx, registration); err != nil {
+	if err := config.client.ServiceRegister(ctx, registration); err != nil {
 		return err
 	}
-	defer config.agent.ServiceDeregister(context.Background(), serviceID)
+	defer config.client.ServiceDeregister(context.Background(), serviceID)
 
 	ticker := time.NewTicker(config.healthCheckInterval)
 	defer ticker.Stop()
@@ -80,7 +79,7 @@ func registerAndUpdate(ctx context.Context, config config) error {
 				output = err.Error()
 			}
 
-			if err := config.agent.UpdateTTL(ctx, status, checkID, output); err != nil {
+			if err := config.client.UpdateTTL(ctx, status, checkID, output); err != nil {
 				return err
 			}
 		}
@@ -108,8 +107,19 @@ func registerLoop(ctx context.Context, config config) {
 	}
 }
 
-func Register(service string, port int, opts ...RegisterOption) (io.Closer, error) {
-	options := registerOptions{
+type Service struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
+func (s *Service) Close() error {
+	s.cancel()
+	<-s.done
+	return nil
+}
+
+func NewService(agent AgentAPI, service string, port int, opts ...ServiceOption) (*Service, error) {
+	options := serviceOptions{
 		healthCheckFunc:     func() error { return nil },
 		healthCheckInterval: defaultHealthCheckInterval,
 	}
@@ -128,16 +138,15 @@ func Register(service string, port int, opts ...RegisterOption) (io.Closer, erro
 			port:                port,
 			healthCheckInterval: options.healthCheckInterval,
 			healthCheckFunc:     options.healthCheckFunc,
-			agent:               consulapi.NewAgent(options.agentOptions...),
+			client:              agent,
 		}
 		registerLoop(ctx, config)
 	}()
 
-	return closerFunc(func() error {
-		cancel()
-		<-done
-		return nil
-	}), nil
+	return &Service{
+		cancel: cancel,
+		done:   done,
+	}, nil
 }
 
 func makeTTL(d time.Duration) string {

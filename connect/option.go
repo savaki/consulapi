@@ -2,32 +2,28 @@ package connect
 
 import (
 	"time"
-
-	"github.com/savaki/consulapi"
 )
 
-type registerOptions struct {
-	agentOptions        []consulapi.Option
+type resolverOptions struct {
+}
+
+type ResolverOption func(*resolverOptions)
+
+type serviceOptions struct {
 	healthCheckFunc     func() error
 	healthCheckInterval time.Duration
 }
 
-type RegisterOption func(*registerOptions)
+type ServiceOption func(*serviceOptions)
 
-func WithConsulAddr(addr string) RegisterOption {
-	return func(o *registerOptions) {
-		o.agentOptions = append(o.agentOptions, consulapi.WithConsulAddr(addr))
-	}
-}
-
-func WithHealthCheckFunc(fn func() error) RegisterOption {
-	return func(o *registerOptions) {
+func WithHealthCheckFunc(fn func() error) ServiceOption {
+	return func(o *serviceOptions) {
 		o.healthCheckFunc = fn
 	}
 }
 
-func WithHealthCheckInterval(interval time.Duration) RegisterOption {
-	return func(o *registerOptions) {
+func WithHealthCheckInterval(interval time.Duration) ServiceOption {
+	return func(o *serviceOptions) {
 		o.healthCheckInterval = interval
 	}
 }

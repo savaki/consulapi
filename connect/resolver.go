@@ -11,10 +11,14 @@ import (
 	"google.golang.org/grpc/naming"
 )
 
+type HealthAPI interface {
+	Connect(ctx context.Context, service string, passing bool) ([]consulapi.HealthServiceEntry, error)
+}
+
 type watcher struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
-	client  *consulapi.Health
+	client  HealthAPI
 	service string
 
 	mutex    sync.Mutex
@@ -59,7 +63,7 @@ func (w *watcher) Close() {
 }
 
 type resolver struct {
-	client  *consulapi.Health
+	client  HealthAPI
 	service string
 }
 
@@ -73,9 +77,7 @@ func (r *resolver) Resolve(_ string) (naming.Watcher, error) {
 	}, nil
 }
 
-func NewResolver(service string, opts ...consulapi.Option) naming.Resolver {
-	client := consulapi.NewHealth(opts...)
-
+func NewResolver(client HealthAPI, service string, opts ...ResolverOption) naming.Resolver {
 	return &resolver{
 		client:  client,
 		service: service,
