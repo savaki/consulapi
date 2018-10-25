@@ -2,10 +2,12 @@ package consulapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 var errUpdateTTL = errors.New("update ttl failed")
@@ -33,6 +35,49 @@ const (
 	StatusWarn Status = "warning"
 	StatusFail Status = "critical"
 )
+
+type AgentConnectAuthorizeRequest struct {
+	Target           string
+	ClientCertURI    string
+	ClientCertSerial string
+}
+
+type AgentConnectAuthorizeResponse struct {
+	Authorized bool
+	Reason     string
+}
+
+type AgentConnectCALeaf struct {
+	SerialNumber  string
+	CertPEM       string
+	PrivateKeyPEM string
+	Service       string
+	ServiceURI    string
+	ValidAfter    time.Time
+	ValidBefore   time.Time
+	CreateIndex   int64
+	ModifyIndex   int64
+}
+
+type AgentConnectCARoot struct {
+	ID                string
+	Name              string
+	SerialNumber      int
+	SigningKeyID      string
+	NotBefore         time.Time
+	NotAfter          time.Time
+	RootCert          string
+	IntermediateCerts []string
+	Active            bool
+	CreateIndex       int64
+	ModifyIndex       int64
+}
+
+type AgentConnectCARoots struct {
+	ActiveRootID string
+	TrustDomain  string
+	Roots        []AgentConnectCARoot
+}
 
 type AgentServiceCheck struct {
 	CheckID                        string `json:",omitempty"`
@@ -68,6 +113,54 @@ type AgentServiceRegistration struct {
 
 type Agent struct {
 	client *client
+}
+
+func (a *Agent) ConnectAuthorize(ctx context.Context, input AgentConnectAuthorizeRequest) (AgentConnectAuthorizeResponse, error) {
+	const path = "/v1/agent/connect/authorize"
+	resp, err := a.client.Request(ctx, http.MethodPost, path, input)
+	if err != nil {
+		return AgentConnectAuthorizeResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	var output AgentConnectAuthorizeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
+		return AgentConnectAuthorizeResponse{}, err
+	}
+
+	return output, nil
+}
+
+func (a *Agent) ConnectCALeaf(ctx context.Context, service string) (AgentConnectCALeaf, error) {
+	path := "/v1/agent/connect/ca/leaf/" + service
+	resp, err := a.client.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return AgentConnectCALeaf{}, err
+	}
+	defer resp.Body.Close()
+
+	var output AgentConnectCALeaf
+	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
+		return AgentConnectCALeaf{}, err
+	}
+
+	return output, nil
+}
+
+func (a *Agent) ConnectCARoots(ctx context.Context) (AgentConnectCARoots, error) {
+	const path = "/v1/agent/connect/ca/roots"
+	resp, err := a.client.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return AgentConnectCARoots{}, err
+	}
+	defer resp.Body.Close()
+
+	var output AgentConnectCARoots
+	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
+		return AgentConnectCARoots{}, err
+	}
+
+	return output, nil
 }
 
 func (a *Agent) ServiceRegister(ctx context.Context, registration AgentServiceRegistration) error {
