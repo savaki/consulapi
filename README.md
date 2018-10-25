@@ -1,4 +1,4 @@
-consulapi
+# consulapi [![GoDoc](https://godoc.org/github.com/savaki/consulapi?status.svg)](https://godoc.org/github.com/savaki/consulapi)
 ------------------------------------
 
 `consulapi` is a simplified implementation of the http api intended to 
