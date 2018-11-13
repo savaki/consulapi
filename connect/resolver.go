@@ -98,7 +98,7 @@ deleteLoop:
 }
 
 func (w *watcher) Close() {
-	w.cancel()
+	//w.cancel()
 }
 
 type resolver struct {
