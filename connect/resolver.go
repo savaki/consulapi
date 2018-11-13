@@ -23,6 +23,7 @@ type watcher struct {
 
 	mutex    sync.Mutex
 	previous []consulapi.HealthServiceEntry
+	logf     func(format string, args ...interface{})
 }
 
 func (w *watcher) poll() ([]*naming.Update, error) {
@@ -36,7 +37,7 @@ func (w *watcher) poll() ([]*naming.Update, error) {
 	sort.Slice(services, func(i, j int) bool { return services[i].Service.ID < services[j].Service.ID })
 
 	w.mutex.Lock()
-	updates := makeUpdates(w.previous, services)
+	updates := w.makeUpdates(w.previous, services)
 	w.previous = services
 	w.mutex.Unlock()
 
@@ -58,37 +59,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 	}
 }
 
-func (w *watcher) Close() {
-	w.cancel()
-}
-
-type resolver struct {
-	client  HealthAPI
-	service string
-}
-
-func (r *resolver) Resolve(_ string) (naming.Watcher, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &watcher{
-		ctx:     ctx,
-		cancel:  cancel,
-		client:  r.client,
-		service: r.service,
-	}, nil
-}
-
-func NewResolver(client HealthAPI, service string, opts ...ResolverOption) naming.Resolver {
-	return &resolver{
-		client:  client,
-		service: service,
-	}
-}
-
-func hostAndPort(host string, port int) string {
-	return host + ":" + strconv.Itoa(port)
-}
-
-func makeUpdates(previous, latest []consulapi.HealthServiceEntry) []*naming.Update {
+func (w *watcher) makeUpdates(previous, latest []consulapi.HealthServiceEntry) []*naming.Update {
 	var updates []*naming.Update
 
 	// adds
@@ -100,6 +71,7 @@ addLoop:
 			}
 		}
 
+		w.logf("consul resolver: adding endpoint, %v:%v, to service, %v", l.Service.Address, l.Service.Port, w.service)
 		updates = append(updates, &naming.Update{
 			Op:   naming.Add,
 			Addr: hostAndPort(l.Service.Address, l.Service.Port),
@@ -115,6 +87,7 @@ deleteLoop:
 			}
 		}
 
+		w.logf("consul resolver: removing endpoint, %v:%v, from service, %v", p.Service.Address, p.Service.Port, w.service)
 		updates = append(updates, &naming.Update{
 			Op:   naming.Delete,
 			Addr: hostAndPort(p.Service.Address, p.Service.Port),
@@ -122,4 +95,45 @@ deleteLoop:
 	}
 
 	return updates
+}
+
+func (w *watcher) Close() {
+	w.cancel()
+}
+
+type resolver struct {
+	client  HealthAPI
+	service string
+	logf    func(format string, args ...interface{})
+}
+
+func (r *resolver) Resolve(_ string) (naming.Watcher, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &watcher{
+		ctx:     ctx,
+		cancel:  cancel,
+		client:  r.client,
+		service: r.service,
+		logf:    r.logf,
+	}, nil
+}
+
+func NewResolver(client HealthAPI, service string, opts ...ResolverOption) naming.Resolver {
+	options := resolverOptions{
+		logf: func(format string, args ...interface{}) {},
+	}
+
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	return &resolver{
+		client:  client,
+		service: service,
+		logf:    options.logf,
+	}
+}
+
+func hostAndPort(host string, port int) string {
+	return host + ":" + strconv.Itoa(port)
 }

@@ -5,9 +5,16 @@ import (
 )
 
 type resolverOptions struct {
+	logf func(format string, args ...interface{})
 }
 
 type ResolverOption func(*resolverOptions)
+
+func WithLogger(logf func(format string, args ...interface{})) ResolverOption {
+	return func(o *resolverOptions) {
+		o.logf = logf
+	}
+}
 
 type serviceOptions struct {
 	healthCheckFunc     func() error
