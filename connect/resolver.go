@@ -20,11 +20,11 @@ type watcher struct {
 	cancel  context.CancelFunc
 	client  HealthAPI
 	service string
+	logf    func(format string, args ...interface{})
+	debugf  func(format string, args ...interface{})
 
 	mutex    sync.Mutex
 	previous []consulapi.HealthServiceEntry
-	logf     func(format string, args ...interface{})
-	debugf   func(format string, args ...interface{})
 }
 
 func (w *watcher) poll() ([]*naming.Update, error) {
