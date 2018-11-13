@@ -24,17 +24,20 @@ type watcher struct {
 	mutex    sync.Mutex
 	previous []consulapi.HealthServiceEntry
 	logf     func(format string, args ...interface{})
+	debugf   func(format string, args ...interface{})
 }
 
 func (w *watcher) poll() ([]*naming.Update, error) {
 	ctx, cancel := context.WithTimeout(w.ctx, 30*time.Second)
 	defer cancel()
 
+	w.debugf("searching for connect endpoints for service, %v", w.service)
 	services, err := w.client.Connect(ctx, w.service, true)
 	if err != nil {
 		return nil, err
 	}
 	sort.Slice(services, func(i, j int) bool { return services[i].Service.ID < services[j].Service.ID })
+	w.debugf("found %v connect endpoints for service, %v", len(services), w.service)
 
 	w.mutex.Lock()
 	updates := w.makeUpdates(w.previous, services)
@@ -105,6 +108,7 @@ type resolver struct {
 	client  HealthAPI
 	service string
 	logf    func(format string, args ...interface{})
+	debugf  func(format string, args ...interface{})
 }
 
 func (r *resolver) Resolve(_ string) (naming.Watcher, error) {
@@ -115,12 +119,14 @@ func (r *resolver) Resolve(_ string) (naming.Watcher, error) {
 		client:  r.client,
 		service: r.service,
 		logf:    r.logf,
+		debugf:  r.debugf,
 	}, nil
 }
 
 func NewResolver(client HealthAPI, service string, opts ...ResolverOption) naming.Resolver {
 	options := resolverOptions{
-		logf: func(format string, args ...interface{}) {},
+		logf:   func(format string, args ...interface{}) {},
+		debugf: func(format string, args ...interface{}) {},
 	}
 
 	for _, opt := range opts {
@@ -131,6 +137,7 @@ func NewResolver(client HealthAPI, service string, opts ...ResolverOption) namin
 		client:  client,
 		service: service,
 		logf:    options.logf,
+		debugf:  options.debugf,
 	}
 }
 

@@ -5,7 +5,8 @@ import (
 )
 
 type resolverOptions struct {
-	logf func(format string, args ...interface{})
+	logf   func(format string, args ...interface{})
+	debugf func(format string, args ...interface{})
 }
 
 type ResolverOption func(*resolverOptions)
@@ -13,6 +14,12 @@ type ResolverOption func(*resolverOptions)
 func WithLogger(logf func(format string, args ...interface{})) ResolverOption {
 	return func(o *resolverOptions) {
 		o.logf = logf
+	}
+}
+
+func WithDebug(debugf func(format string, args ...interface{})) ResolverOption {
+	return func(o *resolverOptions) {
+		o.debugf = debugf
 	}
 }
 
