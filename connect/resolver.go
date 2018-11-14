@@ -51,6 +51,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 	for {
 		updates, err := w.poll()
 		if err == nil {
+			w.debugf("polled failed for service, %v - %v", w.service, err)
 			return updates, nil
 		}
 
