@@ -31,13 +31,11 @@ func (w *watcher) poll() ([]*naming.Update, error) {
 	ctx, cancel := context.WithTimeout(w.ctx, 30*time.Second)
 	defer cancel()
 
-	w.debugf("searching for connect endpoints for service, %v", w.service)
 	services, err := w.client.Connect(ctx, w.service, true)
 	if err != nil {
 		return nil, err
 	}
 	sort.Slice(services, func(i, j int) bool { return services[i].Service.ID < services[j].Service.ID })
-	w.debugf("found %v connect endpoints for service, %v", len(services), w.service)
 
 	w.mutex.Lock()
 	updates := w.makeUpdates(w.previous, services)
@@ -51,7 +49,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 	for {
 		updates, err := w.poll()
 		if err == nil {
-			w.debugf("polled failed for service, %v - %v", w.service, err)
+			w.debugf("found updates for service, %v - %#v", w.service, updates)
 			return updates, nil
 		}
 
