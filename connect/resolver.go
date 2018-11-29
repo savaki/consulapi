@@ -57,6 +57,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		case <-w.ctx.Done():
 			return nil, w.ctx.Err()
 		case <-time.After(15 * time.Second):
+			w.logf("retrying poll ...")
 		}
 	}
 }
